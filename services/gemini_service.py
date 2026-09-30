@@ -10,6 +10,7 @@ from prompts import SYSTEM_PROMPT
 
 log = logging.getLogger("macrosnap.gemini")
 _MEAL = re.compile(r"<meal>(.*?)</meal>", re.S)
+_SUGGESTION = re.compile(r"<suggestion>(.*?)</suggestion>", re.S)
 
 
 class GeminiError(Exception):
@@ -39,69 +40,86 @@ def split_meal(text):
     try:
         d = json.loads(m.group(1))
         meal = {k: int(float(d.get(k, 0))) for k in ("calories", "protein", "carbs", "fat")}
-        meal.update(name=str(d.get("name", "Meal")), items=[str(i) for i in d.get("items", [])][:8],
-                    confidence=str(d.get("confidence", "medium")).lower(),
-                    type=str(d.get("type", "snack")).lower())
+        score = d.get("score", 7)
+        try:
+            score = max(1, min(10, int(float(score))))
+        except Exception:
+            score = 7
+        meal.update(
+            name=str(d.get("name", "Meal")),
+            items=[str(i) for i in d.get("items", [])][:8],
+            confidence=str(d.get("confidence", "medium")).lower(),
+            type=str(d.get("type", "snack")).lower(),
+            score=score,
+            verdict=str(d.get("verdict", "Logged")).strip() or "Logged",
+            emoji=str(d.get("emoji", "🍽️")).strip()[:4] or "🍽️",
+        )
         return clean, meal
     except Exception:
         log.warning("Could not parse meal block: %s", m.group(1))
         return clean, None
 
 
-# def ask(chat, parts):
-#     try:
-#         text = chat.send_message(parts).text
-#     except Exception as e:
-#         log.exception("Gemini request failed")
-#         msg = str(e).lower()
-#         if "api key" in msg or "permission" in msg or "401" in msg or "403" in msg:
-#             raise GeminiError("MacroSnap can't reach its AI right now (API key problem).")
-#         if "429" in msg or "quota" in msg:
-#             raise GeminiError("The AI is busy right now. Give it a minute and try again.")
-#         raise GeminiError("Something went wrong analysing that. Please try again.")
-#     if not text:
-#         raise GeminiError("I couldn't come up with an answer for that. Try rephrasing.")
-#     return text
+def split_suggestion(text):
+    """Return (clean_text, suggestion_dict_or_None) for the recommend-a-meal flow."""
+    m = _SUGGESTION.search(text or "")
+    clean = _SUGGESTION.sub("", text or "").strip()
+    if not m:
+        return clean, None
+    try:
+        d = json.loads(m.group(1))
+        return clean, {"title": str(d.get("title", "Something balanced")),
+                       "why": str(d.get("why", "")).strip()}
+    except Exception:
+        log.warning("Could not parse suggestion block: %s", m.group(1))
+        return clean, None
+
+
+def _is_overloaded(msg):
+    return "503" in msg or "unavailable" in msg or "overloaded" in msg
+
 
 def ask(chat, parts):
-    text, last = None, None
-    
+    """Send a message, pivoting through config.FALLBACK_MODELS on overload.
+    On success the chat is LEFT on whichever model worked, so later messages
+    in this session start there instead of repeating models that just failed.
+    """
     models_to_try = [chat._model]
-    if hasattr(config, 'FALLBACK_MODELS'):
-        for m in config.FALLBACK_MODELS:
-            if m not in models_to_try:
-                models_to_try.append(m)
+    for m in getattr(config, "FALLBACK_MODELS", []):
+        if m not in models_to_try:
+            models_to_try.append(m)
 
-    original_model = chat._model
-
-    for model_name in models_to_try:
+    text, last = None, None
+    for i, model_name in enumerate(models_to_try):
         chat._model = model_name
         try:
             text = chat.send_message(parts).text
+            if i > 0:
+                log.info("Recovered using fallback model: %s", model_name)
             break
         except Exception as e:
             last = e
             msg = str(e).lower()
             log.warning("Gemini model %s failed: %s", model_name, e)
-            if "503" in msg or "unavailable" in msg or "overloaded" in msg:
-                # Give it a tiny bit of breathing room before trying the next model
-                time.sleep(1)
+            if _is_overloaded(msg) and i < len(models_to_try) - 1:
+                time.sleep(1.5)
                 continue
-            # If it's another kind of error (like 400 or auth), don't try fallback models
-            break
-
-    chat._model = original_model
+            break  # non-overload error, or no models left: stop retrying
 
     if text is None:
+        chat._model = models_to_try[0]  # only reset to primary on total failure
         msg = str(last).lower()
-        log.error("Gemini request failed: %s", last)
-        if "503" in msg or "unavailable" in msg:
-            raise GeminiError("The AI is very busy right now. Please try again in a minute.")
+        log.error("Gemini request failed on every model tried: %s", last)
+        if _is_overloaded(msg):
+            raise GeminiError("All AI models are busy right now. Please try again in a minute.")
         if "api key" in msg or "403" in msg or "401" in msg:
             raise GeminiError("MacroSnap can't reach its AI right now (API key problem).")
         if "429" in msg or "quota" in msg:
             raise GeminiError("The AI is busy right now. Give it a minute and try again.")
+        if "404" in msg or "not found" in msg:
+            raise GeminiError("One of the configured AI models is no longer available.")
         raise GeminiError("Something went wrong analysing that. Please try again.")
+
     if not text:
         raise GeminiError("I couldn't come up with an answer for that. Try rephrasing.")
     return text

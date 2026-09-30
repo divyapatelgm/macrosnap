@@ -66,6 +66,30 @@ button:focus-visible,input:focus-visible,[data-testid="stChatInput"] textarea:fo
 .wa b{font-family:var(--serif);font-size:1.1rem}.wa p{font-size:.8rem;color:var(--mute);margin:.2rem 0 .6rem}
 @media(max-width:760px){.snap{border-left:0;padding-left:0;border-top:1px solid var(--line);padding-top:1rem}.grid{grid-template-columns:repeat(2,1fr)}.block-container{padding:.8rem .9rem 7rem}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* --- new: goal ring, streak, score badge, suggestion card --- */
+@property --pct{syntax:'<number>';inherits:true;initial-value:0}
+.ring-wrap{display:flex;justify-content:center;margin:.2rem 0 1rem}
+.ring{--pct:0;width:132px;height:132px;border-radius:50%;
+  background:conic-gradient(var(--ink) calc(var(--pct)*1%), var(--line) 0);
+  display:flex;align-items:center;justify-content:center;transition:--pct 1.1s ease-out}
+.ring .hole{width:100px;height:100px;border-radius:50%;background:var(--paper);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.ring .hole b{font-family:var(--serif);font-size:1.7rem;line-height:1;font-weight:500}
+.ring .hole span{font-size:.68rem;color:var(--mute);margin-top:.15rem}
+.streak{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;color:var(--ink);
+  background:var(--card);border:1px solid var(--line);border-radius:999px;padding:.25rem .7rem}
+.score-badge{display:inline-flex;align-items:center;gap:.3rem;font-size:.78rem;font-weight:600;
+  border:1px solid var(--ink);border-radius:999px;padding:.1rem .55rem;margin-left:.4rem}
+.score-badge.hi{background:var(--lime)}
+.score-badge.mid{background:var(--card)}
+.score-badge.lo{background:var(--paper);color:var(--mute)}
+.result .verdict{font-style:italic;color:var(--mute);font-size:.85rem;margin:.15rem 0 .6rem}
+.suggestion{background:var(--card);border:1px solid var(--ink);border-radius:12px;
+  padding:1rem 1.1rem;margin:.6rem 0;border-left:5px solid var(--lime)}
+.suggestion .tag{font-size:.68rem;letter-spacing:.14em;color:var(--lime-d);font-weight:600}
+.suggestion h4{font-family:var(--serif);font-size:1.2rem;margin:.2rem 0 .3rem;font-weight:600}
+.suggestion p{font-size:.88rem;color:var(--mute);margin:0}
 </style>
 """
 

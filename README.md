@@ -3,7 +3,7 @@
 Smart nutrition without the spreadsheet. Chat or snap a meal photo; Gemini estimates calories and macros, keeps context for follow-ups, and Twilio texts your summary to WhatsApp.
 
 ## Features
-Onboarding, nutrition workspace with live totals and meal list, structured meal result cards, photo analysis, empty-state quick actions, WhatsApp summary, friendly errors (details go to the server log).
+Onboarding, nutrition workspace with live totals and meal list, structured meal result cards, photo analysis, empty-state quick actions, WhatsApp daily summary, WhatsApp weekly recap, daily login streaks, "what should I eat next" AI recommendations, friendly errors (details go to the server log).
 
 ## Tech stack
 Python 3.9+, Streamlit, Google Gemini (`google-genai`), Twilio WhatsApp.
